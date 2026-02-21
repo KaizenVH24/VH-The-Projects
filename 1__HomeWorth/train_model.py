@@ -1,11 +1,11 @@
 import pandas as pd
 import numpy as np
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, cross_val_score
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.metrics import mean_absolute_error, r2_score
+from sklearn.metrics import mean_absolute_error, r2_score, mean_squared_error
 import joblib
 
 # -------------------------------
@@ -15,7 +15,6 @@ df = pd.read_csv("data/housing_data.csv")
 
 print("Dataset Loaded Successfully")
 print("Shape:", df.shape)
-print(df.head())
 
 # -------------------------------
 # Define Features & Target
@@ -23,18 +22,7 @@ print(df.head())
 X = df.drop("price", axis=1)
 y = df["price"]
 
-# -------------------------------
-# Identify Column Types
-# -------------------------------
 categorical_cols = ["city", "location_type", "furnishing"]
-
-numerical_cols = [
-    "area_sqft",
-    "bhk",
-    "bathrooms",
-    "parking",
-    "property_age"
-]
 
 # -------------------------------
 # Preprocessing
@@ -47,14 +35,19 @@ preprocessor = ColumnTransformer(
 )
 
 # -------------------------------
-# Create Pipeline
+# Improved Random Forest
 # -------------------------------
+rf = RandomForestRegressor(
+    n_estimators=200,
+    max_depth=20,
+    min_samples_split=5,
+    random_state=42,
+    n_jobs=-1
+)
+
 model = Pipeline(steps=[
     ("preprocessor", preprocessor),
-    ("regressor", RandomForestRegressor(
-        n_estimators=100,
-        random_state=42
-    ))
+    ("regressor", rf)
 ])
 
 # -------------------------------
@@ -66,27 +59,46 @@ X_train, X_test, y_train, y_test = train_test_split(
     random_state=42
 )
 
-# -------------------------------
-# Train Model
-# -------------------------------
 print("\nTraining model...")
 model.fit(X_train, y_train)
 
 # -------------------------------
-# Evaluate Model
+# Cross Validation
+# -------------------------------
+cv_scores = cross_val_score(model, X, y, cv=5, scoring="r2")
+
+# -------------------------------
+# Evaluation
 # -------------------------------
 y_pred = model.predict(X_test)
 
 mae = mean_absolute_error(y_test, y_pred)
+rmse = np.sqrt(mean_squared_error(y_test, y_pred))
 r2 = r2_score(y_test, y_pred)
 
 print("\nModel Performance:")
-print("Mean Absolute Error:", round(mae, 2))
-print("R2 Score:", round(r2, 4))
+print("MAE:", round(mae, 2))
+print("RMSE:", round(rmse, 2))
+print("R2:", round(r2, 4))
+print("Cross-Validation R2 Mean:", round(cv_scores.mean(), 4))
+
+# -------------------------------
+# Feature Importance
+# -------------------------------
+feature_names = model.named_steps["preprocessor"].get_feature_names_out()
+importances = model.named_steps["regressor"].feature_importances_
+
+feature_importance_df = pd.DataFrame({
+    "Feature": feature_names,
+    "Importance": importances
+}).sort_values(by="Importance", ascending=False)
+
+print("\nTop 10 Important Features:")
+print(feature_importance_df.head(10))
 
 # -------------------------------
 # Save Model
 # -------------------------------
 joblib.dump(model, "models/house_price_model.pkl")
 
-print("\nModel saved in models/house_price_model.pkl")
+print("\nModel saved successfully!")

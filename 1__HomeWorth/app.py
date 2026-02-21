@@ -1,80 +1,57 @@
 import streamlit as st
 import pandas as pd
 import joblib
+import numpy as np
+import plotly.graph_objects as go
 
 # ---------------------------------------------------
 # Page Config
 # ---------------------------------------------------
-st.set_page_config(page_title="HomeWorth AI", layout="wide")
+st.set_page_config(page_title="VH-HouseWorth & Credit Analysis", layout="wide")
 
 # ---------------------------------------------------
-# Custom Styling
+# Styling (Clean White + Blue)
 # ---------------------------------------------------
 st.markdown("""
 <style>
+body { background-color: #ffffff; color: #111827; }
 
-body {
-    background-color: #f5f7fa;
-}
-
-.navbar {
-    background-color: #111827;
-    padding: 1rem 2rem;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+.stButton>button {
+    background-color: #2563eb;
     color: white;
-}
-
-.nav-links a {
-    color: white;
-    margin-left: 25px;
-    text-decoration: none;
+    border-radius: 6px;
     font-weight: 500;
 }
+.stButton>button:hover {
+    background-color: #1d4ed8;
+    color: white;
+}
 
-.nav-links a:hover {
-    color: #60a5fa;
+.big-value {
+    font-size: 40px;
+    font-weight: 700;
+    color: #2563eb;
 }
 
 .footer {
-    position: fixed;
-    bottom: 0;
-    width: 100%;
-    background-color: #111827;
-    color: white;
     text-align: center;
-    padding: 0.7rem;
+    margin-top: 60px;
     font-size: 14px;
+    color: #6b7280;
 }
-
-.block-container {
-    padding-top: 2rem;
-    padding-bottom: 5rem;
-}
-
 </style>
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------
-# Top Navigation Bar
+# Helper: Format Currency
 # ---------------------------------------------------
-st.markdown("""
-<div class="navbar">
-    <div><strong>HomeWorth AI</strong></div>
-    <div class="nav-links">
-        <a href="?page=home">Home</a>
-        <a href="?page=price">Price Prediction</a>
-        <a href="?page=credit">Credit Eligibility</a>
-    </div>
-</div>
-""", unsafe_allow_html=True)
-
-# ---------------------------------------------------
-# Page Routing
-# ---------------------------------------------------
-query_params = st.query_params
-page = query_params.get("page", "home")
+def format_currency(value):
+    if value >= 1e7:
+        return f"{value/1e7:.2f} Cr"
+    elif value >= 1e5:
+        return f"{value/1e5:.2f} L"
+    else:
+        return f"{value:,.0f}"
 
 # ---------------------------------------------------
 # Load Model & Data
@@ -96,30 +73,17 @@ growth_rates = {
 }
 
 # ---------------------------------------------------
-# HOME PAGE
+# Header
 # ---------------------------------------------------
-if page == "home":
+st.markdown("<h1 style='text-align:center;'>VH-HouseWorth & Credit Analysis</h1>", unsafe_allow_html=True)
+st.markdown("<p style='text-align:center;color:#6b7280;'>Property Valuation & Financial Risk Intelligence</p>", unsafe_allow_html=True)
+st.markdown("---")
 
-    st.markdown("<h1 style='text-align: center;'>HomeWorth AI</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align: center; color: gray;'>Smart Property & Loan Intelligence System</p>", unsafe_allow_html=True)
+# =====================================================
+# PROPERTY SECTION
+# =====================================================
 
-    st.markdown("---")
-
-    st.write("""
-    This platform helps you:
-
-    - Predict property prices across major Indian cities  
-    - Understand city-level market ranges  
-    - Forecast investment value over time  
-    - Evaluate credit eligibility and loan affordability  
-    """)
-
-# ---------------------------------------------------
-# PRICE PREDICTION PAGE
-# ---------------------------------------------------
-elif page == "price":
-
-    st.title("House Price Prediction")
+with st.expander("Property Valuation & Forecast", expanded=True):
 
     col1, col2 = st.columns(2)
 
@@ -135,7 +99,7 @@ elif page == "price":
         age = st.slider("Property Age (years)", 0, 30, 5)
         furnishing = st.selectbox("Furnishing", ["Furnished", "Semi-Furnished", "Unfurnished"])
 
-    if st.button("Predict Price"):
+    if st.button("Estimate Property Value"):
 
         input_data = pd.DataFrame([{
             "city": city,
@@ -150,108 +114,136 @@ elif page == "price":
 
         prediction = model.predict(input_data)[0]
 
-        st.success(f"Estimated Property Price: ₹ {round(prediction, 2):,}")
+        st.subheader("Estimated Current Market Value")
+        st.markdown(f"<div class='big-value'>{format_currency(prediction)}</div>", unsafe_allow_html=True)
 
-        st.markdown("---")
-        st.subheader(f"{city} Market Overview")
-
+        # Market Range
         city_data = data[data["city"] == city]
-
         min_price = city_data["price"].min()
         avg_price = city_data["price"].mean()
         max_price = city_data["price"].max()
 
+        st.markdown("#### Market Range")
         c1, c2, c3 = st.columns(3)
-        c1.metric("Lowest Price", f"₹ {round(min_price, 0):,}")
-        c2.metric("Average Price", f"₹ {round(avg_price, 0):,}")
-        c3.metric("Highest Price", f"₹ {round(max_price, 0):,}")
+        c1.metric("Lowest", format_currency(min_price))
+        c2.metric("Average", format_currency(avg_price))
+        c3.metric("Highest", format_currency(max_price))
 
-        st.markdown("---")
-        st.subheader("Future Price Forecast")
-
+        # Forecast
         rate = growth_rates[city]
-
         price_3 = prediction * ((1 + rate) ** 3)
         price_5 = prediction * ((1 + rate) ** 5)
         price_7 = prediction * ((1 + rate) ** 7)
 
+        st.markdown(f"Projected values are calculated based on estimated current value at **{rate*100:.1f}% annual growth rate**.")
+
         f1, f2, f3 = st.columns(3)
-        f1.metric("After 3 Years", f"₹ {round(price_3, 0):,}")
-        f2.metric("After 5 Years", f"₹ {round(price_5, 0):,}")
-        f3.metric("After 7 Years", f"₹ {round(price_7, 0):,}")
+        f1.metric("3 Years", format_currency(price_3))
+        f2.metric("5 Years", format_currency(price_5))
+        f3.metric("7 Years", format_currency(price_7))
 
-# ---------------------------------------------------
-# CREDIT ELIGIBILITY PAGE
-# ---------------------------------------------------
-elif page == "credit":
+        # Forecast Chart
+        years = [0, 3, 5, 7]
+        values = [prediction, price_3, price_5, price_7]
 
-    st.title("Credit & Loan Eligibility")
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(
+            x=years,
+            y=values,
+            mode='lines+markers',
+            line=dict(color='#2563eb', width=3),
+            marker=dict(size=8)
+        ))
+
+        fig.update_layout(
+            title="Projected Property Growth",
+            xaxis_title="Years from Now",
+            yaxis_title="Estimated Value (₹)",
+            template="simple_white",
+            height=400
+        )
+
+        st.plotly_chart(fig, use_container_width=True)
+
+# =====================================================
+# CREDIT SECTION
+# =====================================================
+
+with st.expander("Credit & Loan Risk Assessment", expanded=False):
 
     col1, col2 = st.columns(2)
 
     with col1:
-        age = st.slider("Age", 21, 60, 30)
         income = st.number_input("Monthly Income (₹)", 10000, 1000000, 50000)
-        employment = st.selectbox("Employment Type", ["Salaried", "Self-Employed"])
         existing_emi = st.number_input("Existing Monthly EMI (₹)", 0, 500000, 10000)
 
     with col2:
         loan_amount = st.number_input("Desired Loan Amount (₹)", 500000, 50000000, 2000000)
         tenure = st.slider("Loan Tenure (Years)", 5, 30, 20)
 
-    if st.button("Evaluate Credit Profile"):
+    if st.button("Evaluate Loan Profile"):
 
         dti = existing_emi / income
+        lti = loan_amount / (income * 12)
 
-        if dti < 0.30:
-            category = "Excellent"
-            rate_range = (8.2, 8.8)
-        elif dti < 0.45:
-            category = "Good"
-            rate_range = (8.8, 9.4)
-        elif dti < 0.55:
-            category = "Moderate"
-            rate_range = (9.4, 10.2)
+        base_rate = 8.5
+
+        if dti < 0.30 and lti < 4:
+            category = "Low Risk"
+            rate_adjust = -0.3
+        elif dti < 0.45 and lti < 6:
+            category = "Moderate Risk"
+            rate_adjust = 0.0
         else:
             category = "High Risk"
-            rate_range = (10.2, 11.5)
+            rate_adjust = 0.8
 
-        avg_rate = sum(rate_range) / 2 / 100 / 12
+        final_rate = base_rate + rate_adjust
+        monthly_rate = final_rate / 100 / 12
         months = tenure * 12
 
-        emi = (loan_amount * avg_rate * (1 + avg_rate)**months) / ((1 + avg_rate)**months - 1)
+        emi = (loan_amount * monthly_rate * (1 + monthly_rate)**months) / ((1 + monthly_rate)**months - 1)
 
-        st.success(f"Credit Category: {category}")
+        st.subheader("Credit Profile")
+        st.success(f"Risk Category: {category}")
 
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Lowest Interest", f"{rate_range[0]}%")
-        c2.metric("Average Interest", f"{round(sum(rate_range)/2,2)}%")
-        c3.metric("Highest Interest", f"{rate_range[1]}%")
-
-        st.markdown("---")
-        st.subheader("Estimated Monthly EMI")
-        st.info(f"₹ {round(emi, 2):,}")
-
-        st.markdown("---")
-        st.subheader("Loan Affordability Analysis")
+        c1, c2 = st.columns(2)
+        c1.metric("Estimated Interest Rate", f"{final_rate:.2f}%")
+        c2.metric("Estimated Monthly EMI", f"₹ {emi:,.0f}")
 
         emi_ratio = emi / income
 
         if emi_ratio < 0.30:
-            st.success("This loan is comfortably affordable.")
+            st.success("Loan appears financially comfortable.")
         elif emi_ratio < 0.45:
-            st.warning("This loan is manageable but slightly stretched.")
+            st.warning("Loan is manageable but moderately stretched.")
         else:
-            st.error("This loan may be financially risky based on your income.")
+            st.error("Loan may create financial stress.")
+
+        # EMI vs Income Chart
+        fig2 = go.Figure()
+        fig2.add_trace(go.Bar(
+            x=["Income", "EMI"],
+            y=[income, emi],
+            marker_color=["#2563eb", "#ef4444"]
+        ))
+
+        fig2.update_layout(
+            title="Income vs EMI Comparison",
+            template="simple_white",
+            height=400
+        )
+
+        st.plotly_chart(fig2, use_container_width=True)
 
 # ---------------------------------------------------
-# FIXED FOOTER
+# Footer
 # ---------------------------------------------------
 st.markdown("""
 <div class="footer">
-    Built by Vinay |
-    <a href="https://github.com/KaizenVH24" target="_blank" style="color:white;">GitHub</a> |
-    <a href="https://linkedin.com/in/vinayhulsurkar" target="_blank" style="color:white;">LinkedIn</a> |
-    <a href="https://leetcode.com/vinayhulsurkar24" target="_blank" style="color:white;">LeetCode</a>
+Built by Vinay<br>
+<a href="https://github.com/KaizenVH24" target="_blank">GitHub</a> |
+<a href="https://linkedin.com/in/vinayhulsurkar" target="_blank">LinkedIn</a> |
+<a href="https://leetcode.com/vinayhulsurkar24" target="_blank">LeetCode</a>
 </div>
 """, unsafe_allow_html=True)

@@ -3,6 +3,7 @@ import numpy as np
 import random
 
 np.random.seed(42)
+random.seed(42)
 
 cities = {
     "Mumbai": 18000,
@@ -17,10 +18,23 @@ cities = {
     "Lucknow": 4500
 }
 
+growth_volatility = {
+    "Mumbai": 1.10,
+    "Delhi": 1.05,
+    "Bengaluru": 1.08,
+    "Pune": 1.04,
+    "Hyderabad": 1.06,
+    "Chennai": 1.03,
+    "Kolkata": 1.02,
+    "Ahmedabad": 1.02,
+    "Jaipur": 1.01,
+    "Lucknow": 1.01
+}
+
 location_multiplier = {
     "Premium": 1.3,
     "Standard": 1.0,
-    "Developing": 0.8
+    "Developing": 0.85
 }
 
 furnishing_bonus = {
@@ -31,32 +45,56 @@ furnishing_bonus = {
 
 data = []
 
-for _ in range(3000):  # 3000 properties
+for _ in range(5000): 
+
     city = random.choice(list(cities.keys()))
     base_price = cities[city]
 
-    area = random.randint(500, 3000)
-    bhk = random.randint(1, 5)
-    bathrooms = random.randint(1, 4)
+    # Skewed area distribution (normal distribution)
+    area = int(np.random.normal(1200, 400))
+    area = max(400, min(area, 3500))
+
+    # Link BHK to area
+    if area < 700:
+        bhk = random.choice([1])
+    elif area < 1200:
+        bhk = random.choice([2])
+    elif area < 2000:
+        bhk = random.choice([2, 3])
+    else:
+        bhk = random.choice([3, 4, 5])
+
+    bathrooms = min(bhk, random.randint(1, 4))
     parking = random.randint(0, 1)
     location = random.choice(list(location_multiplier.keys()))
-    age = random.randint(0, 20)
+    age = random.randint(0, 25)
     furnishing = random.choice(list(furnishing_bonus.keys()))
 
-    price = (
+    base_property_price = (
         base_price * area *
         location_multiplier[location]
-        + bhk * 200000
-        + bathrooms * 100000
-        + parking * 150000
-        - age * 50000
-        + furnishing_bonus[furnishing]
     )
+
+    structural_adjustment = (
+        bhk * 180000 +
+        bathrooms * 90000 +
+        parking * 120000 -
+        age * 40000 +
+        furnishing_bonus[furnishing]
+    )
+
+    # market noise ±8%
+    noise = np.random.normal(1.0, 0.08)
+
+    # city volatility factor
+    volatility = growth_volatility[city]
+
+    price = (base_property_price + structural_adjustment) * noise * volatility
 
     data.append([
         city, area, bhk, bathrooms,
         parking, location, age,
-        furnishing, price
+        furnishing, round(price, 0)
     ])
 
 columns = [
@@ -70,4 +108,4 @@ df = pd.DataFrame(data, columns=columns)
 
 df.to_csv("data/housing_data.csv", index=False)
 
-print("Dataset generated successfully!")
+print("Refined dataset generated successfully!")
